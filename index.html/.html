@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <title>TK Mevzuat Sistemi</title>
+  <meta name="description" content="Tapu ve Kadastro Mevzuat Sistemi - Güncel mevzuat bilgilerine hızlı ve kolay erişim" />
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    /* Genel stiller */
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f0f2f5;
+      color: #333;
+    }
+    header {
+      background: #003366;
+      color: #fff;
+      text-align: center;
+      padding: 20px;
+    }
+    .container {
+      padding: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .card-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      justify-content: center;
+      margin-top: 20px;
+    }
+    .card {
+      background: #fff;
+      padding: 20px;
+      width: 280px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      text-align: center;
+      cursor: pointer;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    }
+    .card h2 {
+      margin-bottom: 10px;
+      color: #003366;
+      font-size: 1.2rem;
+    }
+    .pdf-card {
+      background: #fff;
+      padding: 15px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .pdf-card a {
+      text-decoration: none;
+      color: #007bff;
+      font-weight: bold;
+    }
+    .back-button {
+      margin-top: 20px;
+      display: inline-block;
+      padding: 10px 20px;
+      background: #007bff;
+      color: #fff;
+      text-decoration: none;
+      border-radius: 4px;
+      transition: background 0.3s;
+    }
+    .back-button:hover {
+      background: #0056b3;
+    }
+    h2.header-title {
+      text-align: center;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Tapu ve Kadastro Mevzuat Sistemi</h1>
+  </header>
+  <div class="container" id="app">
+    <!-- Dinamik içerik buraya yüklenecek -->
+  </div>
+
+  <script>
+    /* Veri yapısı: Kategoriler, alt kategoriler ve PDF listeleri */
+    const data = {
+      "Tapu": {
+        "Genelgeler": [
+          {
+            title: "Tapu Genelge 2021-4",
+            pdfUrl: "https://raw.githubusercontent.com/username/repo/main/tapu-genelge-2021-4.pdf"
+          },
+          {
+            title: "Tapu Genelge 2020-3",
+            pdfUrl: "https://raw.githubusercontent.com/username/repo/main/tapu-genelge-2020-3.pdf"
+          }
+        ],
+        "Talimatlar": [
+          {
+            title: "Tapu Talimat 2022-1",
+            pdfUrl: "https://raw.githubusercontent.com/username/repo/main/tapu-talimat-2022-1.pdf"
+          }
+        ]
+      },
+      "Kadastro": {
+        "Genelgeler": [
+          {
+            title: "Kadastro Genelge 2021-2",
+            pdfUrl: "https://raw.githubusercontent.com/username/repo/main/kadastro-genelge-2021-2.pdf"
+          }
+        ],
+        "Talimatlar": [
+          {
+            title: "Kadastro Talimat 2022-2",
+            pdfUrl: "https://raw.githubusercontent.com/username/repo/main/kadastro-talimat-2022-2.pdf"
+          },
+          {
+            title: "Kadastro Talimat 2023-1",
+            pdfUrl: "https://raw.githubusercontent.com/username/repo/main/kadastro-talimat-2023-1.pdf"
+          }
+        ]
+      }
+    };
+
+    const appDiv = document.getElementById("app");
+
+    // Ana kategorileri (Tapu, Kadastro) gösterir.
+    function showMainCategories() {
+      appDiv.innerHTML = "";
+
+      const cardContainer = document.createElement("div");
+      cardContainer.className = "card-container";
+
+      Object.keys(data).forEach(category => {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.innerHTML = `<h2>${category}</h2>`;
+        card.addEventListener("click", () => {
+          showSubCategories(category);
+        });
+        cardContainer.appendChild(card);
+      });
+
+      appDiv.appendChild(cardContainer);
+    }
+
+    // Seçilen ana kategoriye ait alt kategorileri (Genelgeler, Talimatlar) gösterir.
+    function showSubCategories(category) {
+      appDiv.innerHTML = "";
+
+      // Geri butonu: Ana kategorilere dön
+      const backBtn = document.createElement("a");
+      backBtn.className = "back-button";
+      backBtn.textContent = "Geri";
+      backBtn.href = "#";
+      backBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        showMainCategories();
+      });
+      appDiv.appendChild(backBtn);
+
+      const header = document.createElement("h2");
+      header.textContent = category;
+      header.className = "header-title";
+      appDiv.appendChild(header);
+
+      const cardContainer = document.createElement("div");
+      cardContainer.className = "card-container";
+
+      const subCategories = Object.keys(data[category]);
+      subCategories.forEach(subCategory => {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.innerHTML = `<h2>${subCategory}</h2>`;
+        card.addEventListener("click", () => {
+          showPdfList(category, subCategory);
+        });
+        cardContainer.appendChild(card);
+      });
+
+      appDiv.appendChild(cardContainer);
+    }
+
+    // Seçilen alt kategoriye ait PDF'leri listeler.
+    function showPdfList(category, subCategory) {
+      appDiv.innerHTML = "";
+
+      // Geri butonu: Alt kategorilere dön
+      const backBtn = document.createElement("a");
+      backBtn.className = "back-button";
+      backBtn.textContent = "Geri";
+      backBtn.href = "#";
+      backBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        showSubCategories(category);
+      });
+      appDiv.appendChild(backBtn);
+
+      const header = document.createElement("h2");
+      header.textContent = `${category} - ${subCategory}`;
+      header.className = "header-title";
+      appDiv.appendChild(header);
+
+      const pdfs = data[category][subCategory];
+
+      if (pdfs.length === 0) {
+        const message = document.createElement("p");
+        message.textContent = "Bu kategoride henüz PDF bulunmamaktadır.";
+        appDiv.appendChild(message);
+      } else {
+        pdfs.forEach(pdf => {
+          const pdfCard = document.createElement("div");
+          pdfCard.className = "pdf-card";
+          pdfCard.innerHTML = `<span>${pdf.title}</span>
+                               <a href="${pdf.pdfUrl}" target="_blank">Göster</a>`;
+          appDiv.appendChild(pdfCard);
+        });
+      }
+    }
+
+    // Başlangıçta ana kategorileri göster
+    showMainCategories();
+  </script>
+</body>
+</html>
