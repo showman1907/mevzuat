@@ -3,163 +3,120 @@
 <head>
   <meta charset="utf-8" />
   <title>Mevzuat Otomatik PDF Listeleme</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     body {
       font-family: Arial, sans-serif;
       margin: 20px;
       background: #f0f2f5;
     }
-    h1 { color: #003366; }
-    .controls { margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-    .controls label { font-weight: bold; }
-    .controls select, .controls input { padding: 5px; font-size: 1rem; }
+    h1 {
+      color: #003366;
+    }
+    h2 {
+      color: #003366;
+    }
     .category-section {
-      background: #fff; margin-bottom: 30px; padding: 20px;
-      border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      background: #fff;
+      margin-bottom: 30px;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
     }
-    .subcategory { margin-left: 20px; margin-bottom: 10px; }
-    .subcategory h3 { margin-bottom: 5px; color: #007bff; }
+    .subcategory {
+      margin-left: 20px;
+      margin-bottom: 10px;
+    }
+    .subcategory h3 {
+      margin-bottom: 5px;
+      color: #007bff;
+    }
     .pdf-link {
-      display: block; margin: 4px 0; text-decoration: none; color: #333;
-      padding: 4px 8px; border-radius: 4px; transition: background 0.2s;
+      display: block;
+      margin: 4px 0;
+      text-decoration: none;
+      color: #333;
+      padding: 4px 8px;
+      border-radius: 4px;
+      transition: background 0.2s;
     }
-    .pdf-link:hover { background: #eef; }
-
-    /* Modal styles */
-    #pdfModal {
-      display: none; position: fixed; z-index: 1000;
-      top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0,0,0,0.8);
-      justify-content: center; align-items: center;
-    }
-    #pdfModal.open { display: flex; }
-    #modalContent {
-      position: relative; width: 100%; height: 100%;
-      max-width: 800px; max-height: 90%;
-      background: #fff; border-radius: 8px;
-      overflow: hidden;
-    }
-    #pdfFrame {
-      width: 100%; height: 100%; border: none;
-    }
-    #closeModal {
-      position: absolute; top: 10px; right: 10px;
-      background: #ff4d4f; color: #fff; border: none;
-      border-radius: 50%; width: 32px; height: 32px;
-      font-size: 20px; line-height: 32px; cursor: pointer;
+    .pdf-link:hover {
+      background: #eef;
     }
   </style>
 </head>
 <body>
   <h1>Tapu ve Kadastro Mevzuat Sistemi</h1>
-  <p>GitHub’daki <code>showman1907/mevzuat</code> reposu PDF’lerini listeler.</p>
-
-  <div class="controls">
-    <label for="yearFilter">Yıl Filtrele:</label>
-    <select id="yearFilter"><option value="">Tümü</option></select>
-
-    <label for="searchInput">Ara:</label>
-    <input type="text" id="searchInput" placeholder="Başlık veya dosya adı..." />
-  </div>
+  <p>Bu sayfa, GitHub'daki klasörlerde bulunan PDF’leri otomatik olarak listeler.</p>
 
   <div id="app"></div>
 
-  <!-- PDF Modal -->
-  <div id="pdfModal">
-    <div id="modalContent">
-      <button id="closeModal">&times;</button>
-      <iframe id="pdfFrame"></iframe>
-    </div>
-  </div>
-
   <script>
-    const owner = "showman1907", repo = "mevzuat";
-    const mainFolders = ["TAPU","KADASTRO"];
-    let allPdfs = [];
+    // GitHub repo bilgileriniz:
+    const owner = "showman1907";  // GitHub kullanıcı adınız
+    const repo  = "mevzuat";      // Repo adınız
 
+    // Ana klasörlerimiz (örneğin "TAPU" ve "KADASTRO")
+    const mainFolders = ["TAPU", "KADASTRO"];
+
+    // GitHub API'den belirli bir yolun içeriğini çekmek için fonksiyon
     async function getContents(path) {
+      const token = "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"; // Mevcut token'ınız (gizliliğe dikkat edin!)
       const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
-      const r = await fetch(url);
-      return r.ok ? r.json() : [];
-    }
-    function extractYear(name) {
-      const m = name.match(/^(\d{4})/);
-      return m ? m[1] : "";
-    }
-    function populateYearFilter() {
-      const sel = document.getElementById("yearFilter");
-      const years = [...new Set(allPdfs.map(p=>p.year).filter(y=>y))].sort((a,b)=>b-a);
-      years.forEach(y=>{
-        const o=document.createElement("option");
-        o.value=y; o.textContent=y; sel.appendChild(o);
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `token ${token}`
+        }
       });
-    }
-    function renderList() {
-      const app = document.getElementById("app");
-      app.innerHTML = "";
-      const year = document.getElementById("yearFilter").value;
-      const term = document.getElementById("searchInput").value.toLowerCase();
-
-      mainFolders.forEach(folder=>{
-        const sec = document.createElement("div");
-        sec.className="category-section";
-        sec.innerHTML=`<h2>${folder}</h2>`;
-        app.appendChild(sec);
-
-        const subs = [...new Set(
-          allPdfs.filter(p=>p.folder===folder)
-                 .filter(p=>!year||p.year===year)
-                 .filter(p=>p.name.toLowerCase().includes(term)||p.subfolder.toLowerCase().includes(term))
-                 .map(p=>p.subfolder)
-        )];
-        subs.forEach(sub=>{
-          const dv=document.createElement("div");
-          dv.className="subcategory";
-          dv.innerHTML=`<h3>${sub}</h3>`;
-          sec.appendChild(dv);
-
-          allPdfs
-            .filter(p=>p.folder===folder&&p.subfolder===sub)
-            .filter(p=>!year||p.year===year)
-            .filter(p=>p.name.toLowerCase().includes(term)||p.subfolder.toLowerCase().includes(term))
-            .forEach(p=>{
-              const a=document.createElement("a");
-              a.href="#"; a.className="pdf-link";
-              a.textContent=`${p.year?"["+p.year+"] ":""}${p.name}`;
-              a.addEventListener("click",e=>{
-                e.preventDefault();
-                document.getElementById("pdfFrame").src = p.url;
-                document.getElementById("pdfModal").classList.add("open");
-              });
-              dv.appendChild(a);
-            });
-        });
-      });
+      if (!response.ok) {
+        console.error("HTTP Error", response.status, " - path:", path);
+        return [];
+      }
+      return response.json();
     }
 
-    document.getElementById("closeModal").onclick = ()=>{
-      document.getElementById("pdfModal").classList.remove("open");
-      document.getElementById("pdfFrame").src = "";
-    };
-    document.getElementById("yearFilter").onchange = renderList;
-    document.getElementById("searchInput").oninput = renderList;
+    // Tüm ana ve alt klasörleri gezip PDF linklerini listeleyen ana fonksiyon
+    async function loadAll() {
+      const appDiv = document.getElementById("app");
 
-    async function loadAll(){
-      for (let folder of mainFolders){
-        const dirs = (await getContents(folder)).filter(i=>i.type==="dir").map(i=>i.name);
-        for (let sub of dirs){
-          const items=await getContents(`${folder}/${sub}`);
-          items.filter(i=>i.type==="file"&&i.name.toLowerCase().endsWith(".pdf"))
-               .forEach(i=>allPdfs.push({
-                 folder, subfolder: sub, name: i.name,
-                 url: i.download_url, year: extractYear(i.name)
-               }));
+      for (let folder of mainFolders) {
+        // Her ana klasör için bir bölüm oluşturuyoruz
+        const sectionDiv = document.createElement("div");
+        sectionDiv.className = "category-section";
+        sectionDiv.innerHTML = `<h2>${folder}</h2>`;
+        appDiv.appendChild(sectionDiv);
+
+        // Ana klasör içeriğini çekiyoruz (alt klasörler)
+        const folderContents = await getContents(folder);
+        // Alt klasör (type: "dir") olanları filtreleyelim
+        const subFolders = folderContents.filter(item => item.type === "dir");
+
+        // Her alt klasör için PDF dosyalarını listeleyelim
+        for (let sub of subFolders) {
+          const subDiv = document.createElement("div");
+          subDiv.className = "subcategory";
+          subDiv.innerHTML = `<h3>${sub.name}</h3>`;
+          sectionDiv.appendChild(subDiv);
+
+          // Alt klasör içeriğini çekelim (ör: TAPU/Genelgeler)
+          const subContents = await getContents(`${folder}/${sub.name}`);
+          // .pdf uzantılı dosyaları filtreleyelim
+          const pdfFiles = subContents.filter(
+            item => item.type === "file" && item.name.toLowerCase().endsWith(".pdf")
+          );
+
+          pdfFiles.forEach(pdf => {
+            const link = document.createElement("a");
+            link.href = pdf.download_url; // Direkt PDF linki
+            link.target = "_blank";
+            link.className = "pdf-link";
+            link.textContent = pdf.name;
+            subDiv.appendChild(link);
+          });
         }
       }
-      populateYearFilter();
-      renderList();
     }
+
+    // Sayfa yüklendiğinde çalıştır
     loadAll();
   </script>
 </body>
