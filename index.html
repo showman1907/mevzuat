@@ -3,179 +3,163 @@
 <head>
   <meta charset="utf-8" />
   <title>Mevzuat Otomatik PDF Listeleme</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     body {
       font-family: Arial, sans-serif;
       margin: 20px;
       background: #f0f2f5;
     }
-    h1 {
-      color: #003366;
-    }
-    .controls {
-      margin-bottom: 20px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      align-items: center;
-    }
-    .controls label {
-      font-weight: bold;
-      margin-right: 5px;
-    }
-    .controls select,
-    .controls input {
-      padding: 5px;
-      font-size: 1rem;
-    }
+    h1 { color: #003366; }
+    .controls { margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .controls label { font-weight: bold; }
+    .controls select, .controls input { padding: 5px; font-size: 1rem; }
     .category-section {
-      background: #fff;
-      margin-bottom: 30px;
-      padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      background: #fff; margin-bottom: 30px; padding: 20px;
+      border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
     }
-    .subcategory {
-      margin-left: 20px;
-      margin-bottom: 10px;
-    }
-    .subcategory h3 {
-      margin-bottom: 5px;
-      color: #007bff;
-    }
+    .subcategory { margin-left: 20px; margin-bottom: 10px; }
+    .subcategory h3 { margin-bottom: 5px; color: #007bff; }
     .pdf-link {
-      display: block;
-      margin: 4px 0;
-      text-decoration: none;
-      color: #333;
-      padding: 4px 8px;
-      border-radius: 4px;
-      transition: background 0.2s;
+      display: block; margin: 4px 0; text-decoration: none; color: #333;
+      padding: 4px 8px; border-radius: 4px; transition: background 0.2s;
     }
-    .pdf-link:hover {
-      background: #eef;
+    .pdf-link:hover { background: #eef; }
+
+    /* Modal styles */
+    #pdfModal {
+      display: none; position: fixed; z-index: 1000;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.8);
+      justify-content: center; align-items: center;
+    }
+    #pdfModal.open { display: flex; }
+    #modalContent {
+      position: relative; width: 100%; height: 100%;
+      max-width: 800px; max-height: 90%;
+      background: #fff; border-radius: 8px;
+      overflow: hidden;
+    }
+    #pdfFrame {
+      width: 100%; height: 100%; border: none;
+    }
+    #closeModal {
+      position: absolute; top: 10px; right: 10px;
+      background: #ff4d4f; color: #fff; border: none;
+      border-radius: 50%; width: 32px; height: 32px;
+      font-size: 20px; line-height: 32px; cursor: pointer;
     }
   </style>
 </head>
 <body>
   <h1>Tapu ve Kadastro Mevzuat Sistemi</h1>
-  <p>Bu sayfa, GitHub’da <code>showman1907/mevzuat</code> reposundaki PDF’leri otomatik olarak listeler.</p>
+  <p>GitHub’daki <code>showman1907/mevzuat</code> reposu PDF’lerini listeler.</p>
 
   <div class="controls">
     <label for="yearFilter">Yıl Filtrele:</label>
-    <select id="yearFilter">
-      <option value="">Tümü</option>
-    </select>
+    <select id="yearFilter"><option value="">Tümü</option></select>
 
     <label for="searchInput">Ara:</label>
-    <input type="text" id="searchInput" placeholder="Genelge başlığı veya dosya adı..." />
+    <input type="text" id="searchInput" placeholder="Başlık veya dosya adı..." />
   </div>
 
   <div id="app"></div>
 
+  <!-- PDF Modal -->
+  <div id="pdfModal">
+    <div id="modalContent">
+      <button id="closeModal">&times;</button>
+      <iframe id="pdfFrame"></iframe>
+    </div>
+  </div>
+
   <script>
-    const owner = "showman1907";
-    const repo  = "mevzuat";
-    const mainFolders = ["TAPU", "KADASTRO"];
-    let allPdfs = []; // Tüm PDF kayıtları
+    const owner = "showman1907", repo = "mevzuat";
+    const mainFolders = ["TAPU","KADASTRO"];
+    let allPdfs = [];
 
     async function getContents(path) {
       const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
-      const resp = await fetch(url);
-      if (!resp.ok) return [];
-      return resp.json();
+      const r = await fetch(url);
+      return r.ok ? r.json() : [];
     }
-
     function extractYear(name) {
       const m = name.match(/^(\d{4})/);
       return m ? m[1] : "";
     }
-
     function populateYearFilter() {
-      const select = document.getElementById("yearFilter");
-      const years = Array.from(new Set(allPdfs.map(p => p.year).filter(y => y)))
-                         .sort((a,b)=>b-a);
-      years.forEach(y => {
-        const opt = document.createElement("option");
-        opt.value = y;
-        opt.textContent = y;
-        select.appendChild(opt);
+      const sel = document.getElementById("yearFilter");
+      const years = [...new Set(allPdfs.map(p=>p.year).filter(y=>y))].sort((a,b)=>b-a);
+      years.forEach(y=>{
+        const o=document.createElement("option");
+        o.value=y; o.textContent=y; sel.appendChild(o);
       });
     }
-
     function renderList() {
-      const container = document.getElementById("app");
-      container.innerHTML = "";
+      const app = document.getElementById("app");
+      app.innerHTML = "";
+      const year = document.getElementById("yearFilter").value;
+      const term = document.getElementById("searchInput").value.toLowerCase();
 
-      const yearSel = document.getElementById("yearFilter").value;
-      const searchTerm = document.getElementById("searchInput").value.toLowerCase();
+      mainFolders.forEach(folder=>{
+        const sec = document.createElement("div");
+        sec.className="category-section";
+        sec.innerHTML=`<h2>${folder}</h2>`;
+        app.appendChild(sec);
 
-      mainFolders.forEach(folder => {
-        const section = document.createElement("div");
-        section.className = "category-section";
-        section.innerHTML = `<h2>${folder}</h2>`;
-        container.appendChild(section);
-
-        // Alt klasörlere göre grupla
         const subs = [...new Set(
-          allPdfs
-            .filter(p => p.folder === folder)
-            .filter(p => (!yearSel || p.year === yearSel))
-            .filter(p => p.name.toLowerCase().includes(searchTerm) ||
-                         p.subfolder.toLowerCase().includes(searchTerm) )
-            .map(p => p.subfolder)
+          allPdfs.filter(p=>p.folder===folder)
+                 .filter(p=>!year||p.year===year)
+                 .filter(p=>p.name.toLowerCase().includes(term)||p.subfolder.toLowerCase().includes(term))
+                 .map(p=>p.subfolder)
         )];
-
-        subs.forEach(sub => {
-          const subDiv = document.createElement("div");
-          subDiv.className = "subcategory";
-          subDiv.innerHTML = `<h3>${sub}</h3>`;
-          section.appendChild(subDiv);
+        subs.forEach(sub=>{
+          const dv=document.createElement("div");
+          dv.className="subcategory";
+          dv.innerHTML=`<h3>${sub}</h3>`;
+          sec.appendChild(dv);
 
           allPdfs
-            .filter(p => p.folder === folder && p.subfolder === sub)
-            .filter(p => (!yearSel || p.year === yearSel))
-            .filter(p => p.name.toLowerCase().includes(searchTerm) ||
-                         p.subfolder.toLowerCase().includes(searchTerm))
-            .forEach(p => {
-              const a = document.createElement("a");
-              a.href = p.url;
-              a.target = "_blank";
-              a.className = "pdf-link";
-              a.textContent = `${p.year ? "["+p.year+"] " : ""}${p.name}`;
-              subDiv.appendChild(a);
+            .filter(p=>p.folder===folder&&p.subfolder===sub)
+            .filter(p=>!year||p.year===year)
+            .filter(p=>p.name.toLowerCase().includes(term)||p.subfolder.toLowerCase().includes(term))
+            .forEach(p=>{
+              const a=document.createElement("a");
+              a.href="#"; a.className="pdf-link";
+              a.textContent=`${p.year?"["+p.year+"] ":""}${p.name}`;
+              a.addEventListener("click",e=>{
+                e.preventDefault();
+                document.getElementById("pdfFrame").src = p.url;
+                document.getElementById("pdfModal").classList.add("open");
+              });
+              dv.appendChild(a);
             });
         });
       });
     }
 
-    async function loadAll() {
-      for (let folder of mainFolders) {
-        const contents = await getContents(folder);
-        const dirs = contents.filter(i=>i.type==="dir").map(i=>i.name);
+    document.getElementById("closeModal").onclick = ()=>{
+      document.getElementById("pdfModal").classList.remove("open");
+      document.getElementById("pdfFrame").src = "";
+    };
+    document.getElementById("yearFilter").onchange = renderList;
+    document.getElementById("searchInput").oninput = renderList;
 
-        for (let sub of dirs) {
-          const items = await getContents(`${folder}/${sub}`);
-          items
-            .filter(i=>i.type==="file" && i.name.toLowerCase().endsWith(".pdf"))
-            .forEach(i => {
-              const yr = extractYear(i.name);
-              allPdfs.push({
-                folder, subfolder: sub,
-                name: i.name,
-                url: i.download_url,
-                year: yr
-              });
-            });
+    async function loadAll(){
+      for (let folder of mainFolders){
+        const dirs = (await getContents(folder)).filter(i=>i.type==="dir").map(i=>i.name);
+        for (let sub of dirs){
+          const items=await getContents(`${folder}/${sub}`);
+          items.filter(i=>i.type==="file"&&i.name.toLowerCase().endsWith(".pdf"))
+               .forEach(i=>allPdfs.push({
+                 folder, subfolder: sub, name: i.name,
+                 url: i.download_url, year: extractYear(i.name)
+               }));
         }
       }
       populateYearFilter();
       renderList();
     }
-
-    document.getElementById("yearFilter").addEventListener("change", renderList);
-    document.getElementById("searchInput").addEventListener("input", renderList);
-
     loadAll();
   </script>
 </body>
