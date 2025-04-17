@@ -12,8 +12,21 @@
     h1 {
       color: #003366;
     }
-    h2 {
-      color: #003366;
+    .controls {
+      margin-bottom: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+    .controls label {
+      font-weight: bold;
+      margin-right: 5px;
+    }
+    .controls select,
+    .controls input {
+      padding: 5px;
+      font-size: 1rem;
     }
     .category-section {
       background: #fff;
@@ -46,77 +59,123 @@
 </head>
 <body>
   <h1>Tapu ve Kadastro Mevzuat Sistemi</h1>
-  <p>Bu sayfa, GitHub'daki klasörlerde bulunan PDF’leri otomatik olarak listeler.</p>
+  <p>Bu sayfa, GitHub’da <code>showman1907/mevzuat</code> reposundaki PDF’leri otomatik olarak listeler.</p>
+
+  <div class="controls">
+    <label for="yearFilter">Yıl Filtrele:</label>
+    <select id="yearFilter">
+      <option value="">Tümü</option>
+    </select>
+
+    <label for="searchInput">Ara:</label>
+    <input type="text" id="searchInput" placeholder="Genelge başlığı veya dosya adı..." />
+  </div>
 
   <div id="app"></div>
 
   <script>
-    // GitHub repo bilgileriniz:
-    const owner = "showman1907";  // GitHub kullanıcı adınız
-    const repo  = "mevzuat";      // Repo adınız
-
-    // Ana klasörlerimiz (örneğin "TAPU" ve "KADASTRO")
+    const owner = "showman1907";
+    const repo  = "mevzuat";
     const mainFolders = ["TAPU", "KADASTRO"];
+    let allPdfs = []; // Tüm PDF kayıtları
 
-    // GitHub API'den belirli bir yolun içeriğini çekmek için fonksiyon
     async function getContents(path) {
-      const token = "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"; // Mevcut token'ınız (gizliliğe dikkat edin!)
       const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
-      const response = await fetch(url, {
-        headers: {
-          Authorization: `token ${token}`
-        }
-      });
-      if (!response.ok) {
-        console.error("HTTP Error", response.status, " - path:", path);
-        return [];
-      }
-      return response.json();
+      const resp = await fetch(url);
+      if (!resp.ok) return [];
+      return resp.json();
     }
 
-    // Tüm ana ve alt klasörleri gezip PDF linklerini listeleyen ana fonksiyon
-    async function loadAll() {
-      const appDiv = document.getElementById("app");
+    function extractYear(name) {
+      const m = name.match(/^(\d{4})/);
+      return m ? m[1] : "";
+    }
 
-      for (let folder of mainFolders) {
-        // Her ana klasör için bir bölüm oluşturuyoruz
-        const sectionDiv = document.createElement("div");
-        sectionDiv.className = "category-section";
-        sectionDiv.innerHTML = `<h2>${folder}</h2>`;
-        appDiv.appendChild(sectionDiv);
+    function populateYearFilter() {
+      const select = document.getElementById("yearFilter");
+      const years = Array.from(new Set(allPdfs.map(p => p.year).filter(y => y)))
+                         .sort((a,b)=>b-a);
+      years.forEach(y => {
+        const opt = document.createElement("option");
+        opt.value = y;
+        opt.textContent = y;
+        select.appendChild(opt);
+      });
+    }
 
-        // Ana klasör içeriğini çekiyoruz (alt klasörler)
-        const folderContents = await getContents(folder);
-        // Alt klasör (type: "dir") olanları filtreleyelim
-        const subFolders = folderContents.filter(item => item.type === "dir");
+    function renderList() {
+      const container = document.getElementById("app");
+      container.innerHTML = "";
 
-        // Her alt klasör için PDF dosyalarını listeleyelim
-        for (let sub of subFolders) {
+      const yearSel = document.getElementById("yearFilter").value;
+      const searchTerm = document.getElementById("searchInput").value.toLowerCase();
+
+      mainFolders.forEach(folder => {
+        const section = document.createElement("div");
+        section.className = "category-section";
+        section.innerHTML = `<h2>${folder}</h2>`;
+        container.appendChild(section);
+
+        // Alt klasörlere göre grupla
+        const subs = [...new Set(
+          allPdfs
+            .filter(p => p.folder === folder)
+            .filter(p => (!yearSel || p.year === yearSel))
+            .filter(p => p.name.toLowerCase().includes(searchTerm) ||
+                         p.subfolder.toLowerCase().includes(searchTerm) )
+            .map(p => p.subfolder)
+        )];
+
+        subs.forEach(sub => {
           const subDiv = document.createElement("div");
           subDiv.className = "subcategory";
-          subDiv.innerHTML = `<h3>${sub.name}</h3>`;
-          sectionDiv.appendChild(subDiv);
+          subDiv.innerHTML = `<h3>${sub}</h3>`;
+          section.appendChild(subDiv);
 
-          // Alt klasör içeriğini çekelim (ör: TAPU/Genelgeler)
-          const subContents = await getContents(`${folder}/${sub.name}`);
-          // .pdf uzantılı dosyaları filtreleyelim
-          const pdfFiles = subContents.filter(
-            item => item.type === "file" && item.name.toLowerCase().endsWith(".pdf")
-          );
-
-          pdfFiles.forEach(pdf => {
-            const link = document.createElement("a");
-            link.href = pdf.download_url; // Direkt PDF linki
-            link.target = "_blank";
-            link.className = "pdf-link";
-            link.textContent = pdf.name;
-            subDiv.appendChild(link);
-          });
-        }
-      }
+          allPdfs
+            .filter(p => p.folder === folder && p.subfolder === sub)
+            .filter(p => (!yearSel || p.year === yearSel))
+            .filter(p => p.name.toLowerCase().includes(searchTerm) ||
+                         p.subfolder.toLowerCase().includes(searchTerm))
+            .forEach(p => {
+              const a = document.createElement("a");
+              a.href = p.url;
+              a.target = "_blank";
+              a.className = "pdf-link";
+              a.textContent = `${p.year ? "["+p.year+"] " : ""}${p.name}`;
+              subDiv.appendChild(a);
+            });
+        });
+      });
     }
 
-    // Sayfa yüklendiğinde çalıştır
+    async function loadAll() {
+      for (let folder of mainFolders) {
+        const contents = await getContents(folder);
+        const dirs = contents.filter(i=>i.type==="dir").map(i=>i.name);
+
+        for (let sub of dirs) {
+          const items = await getContents(`${folder}/${sub}`);
+          items
+            .filter(i=>i.type==="file" && i.name.toLowerCase().endsWith(".pdf"))
+            .forEach(i => {
+              const yr = extractYear(i.name);
+              allPdfs.push({
+                folder, subfolder: sub,
+                name: i.name,
+                url: i.download_url,
+                year: yr
+              });
+            });
+        }
+      }
+      populateYearFilter();
+      renderList();
+    }
+
+    document.getElementById("yearFilter").addEventListener("change", renderList);
+    document.getElementById("searchInput").addEventListener("input", renderList);
+
     loadAll();
   </script>
 </body>
